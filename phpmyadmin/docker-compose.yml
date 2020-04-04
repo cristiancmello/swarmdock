@@ -1,0 +1,32 @@
+version: '3.7'
+
+services:
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    ports:
+      - "80"
+    environment:
+      - PMA_ARBITRARY=1
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+  db:
+    image: mysql:5.7
+#    volumes:
+#      - db_data:/var/lib/mysql
+    networks:
+      - overlay
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    deploy:
+      placement:
+        constraints: [node.role == worker]
+
+#volumes:
+#  db_data:
+
+networks:
+  overlay:

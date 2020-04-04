@@ -1,0 +1,164 @@
+#!/bin/bash
+
+COMMAND=$1
+ARGS=(${@:2})
+
+source ./.envrc
+
+swarm_init_manager() {
+  docker-machine ssh manager "docker swarm init --advertise-addr eth1"
+}
+
+swarm_init_worker() {
+  MANAGER_IPV4=$(docker-machine ip manager)
+  JOINTOKEN=$(docker-machine ssh manager "docker swarm join-token manager --quiet")
+
+  docker-machine ssh worker-0 "docker swarm join $MANAGER_IPV4:2377 --token $JOINTOKEN"
+}
+
+dockermachine_create_manager() {
+  docker-machine create \
+    --driver=virtualbox \
+    --virtualbox-share-folder="$VBOX_SHARE_FOLDER" \
+    manager
+}
+
+dockermachine_create_worker() {
+  docker-machine create \
+    --driver=virtualbox \
+    --virtualbox-share-folder="C:\workspace:/home/docker/workspace" \
+    worker-0
+}
+
+swarm_create() {
+  if [ "$SWARM_HOSTS_CREATION_PROFILE_NAME" == "onlyManager" ]; then
+    dockermachine_create_manager
+    swarm_init_manager
+  elif [ "$SWARM_HOSTS_CREATION_PROFILE_NAME" == "default" ]; then
+    dockermachine_create_manager
+    dockermachine_create_worker
+    swarm_init_manager
+    swarm_init_worker    
+  fi
+}
+
+swarm_start() {
+  if [ "$SWARM_HOSTS_CREATION_PROFILE_NAME" == "onlyManager" ]; then
+    docker-machine start manager
+  elif [ "$SWARM_HOSTS_CREATION_PROFILE_NAME" == "default" ]; then
+    docker-machine start manager worker-0   
+  fi
+}
+
+swarm_stop() {
+  if [ "$SWARM_HOSTS_CREATION_PROFILE_NAME" == "onlyManager" ]; then
+    docker-machine stop manager
+  elif [ "$SWARM_HOSTS_CREATION_PROFILE_NAME" == "default" ]; then
+    docker-machine stop manager worker-0   
+  fi
+}
+
+swarm_destroy() {
+  docker-machine rm -y manager worker-0 
+}
+
+swarm_list() {
+  docker-machine ls
+}
+
+swarm_ssh() {
+  ARG_MACHINE_HOST_NAME=${ARGS[0]}
+  docker-machine ssh $ARG_MACHINE_HOST_NAME
+}
+
+swarm_ssh_show_command() {
+  ARG_MACHINE_HOST_NAME=${ARGS[1]}
+
+  MANAGER_IPV4=$(docker-machine ip $ARG_MACHINE_HOST_NAME)
+
+  echo "ssh docker@${MANAGER_IPV4}"
+}
+
+swarm_manager_install_portainer() {
+  ARG_OPT=${ARGS[0]}
+  ARG_MACHINE_HOST_NAME=${ARGS[1]}
+
+  if [ "$ARG_OPT" == "as-manager" ]; then
+    docker-machine --native-ssh ssh $ARG_MACHINE_HOST_NAME "
+      cd ~/workspace/swarm-apps/portainer
+      ./create-portainer-network.sh
+      ./deploy-portainer-agent.sh
+      ./deploy-portainer.sh
+    "
+  elif [ "$ARG_OPT" == "as-worker" ]; then
+    docker-machine --native-ssh ssh $ARG_MACHINE_HOST_NAME "
+      cd ~/workspace/swarm-apps/portainer
+      ./create-portainer-network.sh
+      ./deploy-portainer.sh
+    "
+  else
+    echo 'Invalid args'
+    exit -1
+  fi
+}
+
+swarm_manager_portainer_show_dashboard() {
+  ARG_MACHINE_HOST_NAME=${ARGS[0]}
+  MACHINE_HOST_IP=$(docker-machine ip $ARG_MACHINE_HOST_NAME)
+
+  if [ -z "$MACHINE_HOST_IP" ]; then
+    echo "Invalid IP"
+    exit -1
+  fi 
+
+  PORTAINER_DASHBOARD_URL="http://$MACHINE_HOST_IP:9000"
+
+  echo "$PORTAINER_DASHBOARD_URL"
+}
+
+swarm_deploy_app() {
+  docker-machine --native-ssh ssh manager "
+    cd ~/workspace/swarm-apps
+    ./deploy-app ${ARGS[@]}
+  "
+}
+
+main() {
+  case "$COMMAND" in
+    "start")
+      swarm_start
+      ;;
+    "create")
+      swarm_create
+      ;;
+    "stop")
+      swarm_stop
+      ;;
+    "destroy")
+      swarm_destroy
+      ;;
+    "ls")
+      swarm_list
+      ;;
+    "ssh")
+      swarm_ssh
+      ;;
+    "ssh-show")
+      swarm_ssh_show_command
+      ;;
+    "install-portainer")
+      swarm_manager_install_portainer
+      ;;
+    "portainer-show-dashboard")
+      swarm_manager_portainer_show_dashboard
+      ;;
+    "deploy-app")
+      swarm_deploy_app
+      ;;
+    *)
+      echo "Invalid command"
+      exit -1
+  esac
+}
+
+main

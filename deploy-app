@@ -1,0 +1,7 @@
+
+#!/bin/bash
+
+APP_NAME=$1
+APP_NICKNAME=$2
+
+docker stack deploy --compose-file $APP_NAME/docker-compose.yml $APP_NICKNAME

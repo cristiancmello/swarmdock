@@ -1,0 +1,75 @@
+version: '3'
+
+services:
+  mariadb:
+    image: 'bitnami/mariadb:10.1'
+    ports:
+      - "3306:3306"
+    networks:
+      backend:
+        aliases:
+          - db
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - MARIADB_USER=laravel
+      - MARIADB_DATABASE=laravel
+      - MARIADB_PASSWORD=laravel
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      # placement:
+      #   constraints: [node.role == worker]
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    networks:
+      - backend
+    depends_on:
+      - mariadb
+    environment:
+      PMA_ARBITRARY: 1
+    ports:
+      - "8183:80"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints: [node.role == manager]
+  laravel:
+    image: bitnami/laravel:7
+    networks:
+      - backend
+    tty: true
+    environment:
+      - DB_HOST=mariadb
+      - DB_USERNAME=laravel
+      - DB_DATABASE=laravel
+      - DB_PASSWORD=laravel
+    depends_on:
+      - mariadb
+    ports:
+      - "3000:3000"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints: [node.role == manager]
+    volumes:
+      - ./workspace:/app
+
+networks:
+  backend:
