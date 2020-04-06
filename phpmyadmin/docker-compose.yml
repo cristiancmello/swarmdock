@@ -8,7 +8,7 @@ services:
     environment:
       - PMA_ARBITRARY=1
     networks:
-      - overlay
+      - backend
     deploy:
       placement:
         constraints: [node.role == manager]
@@ -17,7 +17,9 @@ services:
 #    volumes:
 #      - db_data:/var/lib/mysql
     networks:
-      - overlay
+      backend:
+          aliases:
+            - db
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: wordpress
@@ -31,4 +33,4 @@ services:
 #  db_data:
 
 networks:
-  overlay:
+  backend:
