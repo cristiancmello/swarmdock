@@ -7,6 +7,8 @@ services:
       - "80"
     environment:
       - PMA_ARBITRARY=1
+    networks:
+      - overlay
     deploy:
       placement:
         constraints: [node.role == manager]
